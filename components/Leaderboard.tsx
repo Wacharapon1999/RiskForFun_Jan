@@ -18,8 +18,8 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ records, onBack, currentPlaye
     return acc;
   }, {} as Record<string, GameRecord>);
 
-  // Fix: Explicitly type the resulting array as GameRecord[] to ensure properties like score and player_code are accessible
-  const sortedPlayers: GameRecord[] = Object.values(playerStats).sort((a, b) => b.score - a.score);
+  // Fix: Explicitly cast Object.values to GameRecord[] to resolve "unknown[]" inference issues in some environments
+  const sortedPlayers: GameRecord[] = (Object.values(playerStats) as GameRecord[]).sort((a, b) => b.score - a.score);
 
   return (
     <div className="min-h-full w-full bg-[#0a1628] flex flex-col items-center p-4 md:p-8 overflow-y-auto">

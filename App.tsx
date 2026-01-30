@@ -21,7 +21,6 @@ const App: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  // Initial fetch
   useEffect(() => {
     loadData();
   }, []);
@@ -44,7 +43,6 @@ const App: React.FC = () => {
     const code = playerCode.trim().toUpperCase();
     if (!code) return;
 
-    // ตรวจสอบข้อมูลจากรอบที่เคยเล่น
     const playerRounds = allRecords.filter(r => r.player_code === code);
     if (playerRounds.length >= 2) {
       alert(`รหัส "${code}" เล่นครบ 2 รอบแล้ว! ขอบคุณที่ร่วมสนุกครับ`);
@@ -71,10 +69,8 @@ const App: React.FC = () => {
       timestamp: new Date().toISOString()
     };
 
-    // บันทึกลง Google Sheets
     await saveRecord(newRecord);
     
-    // อัปเดตข้อมูลหลังบันทึก
     setTimeout(async () => {
       try {
         const data = await fetchRecords();
@@ -179,13 +175,6 @@ const App: React.FC = () => {
                   <p className="text-sm text-white/50">ตอบคำถาม รับสูงสุด 10 คะแนน!</p>
                 </div>
               </div>
-              <div className="flex items-center gap-5">
-                <div className="w-12 h-12 bg-red-500/20 rounded-xl flex items-center justify-center text-3xl">💥</div>
-                <div>
-                  <p className="font-bold text-red-400">ระเบิดอันตราย</p>
-                  <p className="text-sm text-white/50">โดนแล้วเกมจบทันที!</p>
-                </div>
-              </div>
             </div>
 
             <button 
@@ -205,8 +194,8 @@ const App: React.FC = () => {
       {view === GameView.RESULT && lastGameStats && (
         <div className="h-full w-full flex flex-col items-center justify-center p-6 overflow-y-auto">
           <div className="text-center w-full max-w-md py-10">
-            <div className="text-9xl mb-6 drop-shadow-2xl">{lastGameStats.hitBomb ? '💥' : '🏁'}</div>
-            <h2 className="text-5xl font-black mb-2 leading-none">{lastGameStats.hitBomb ? 'พลาดท่า!' : 'เวลาหมด!'}</h2>
+            <div className="text-9xl mb-6 drop-shadow-2xl">🏁</div>
+            <h2 className="text-5xl font-black mb-2 leading-none">เวลาหมด!</h2>
             <p className="text-amber-400 text-lg font-bold mb-10 uppercase tracking-widest">การประเมินความเสี่ยงสิ้นสุดลง</p>
 
             <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-8 mb-8 relative overflow-hidden">

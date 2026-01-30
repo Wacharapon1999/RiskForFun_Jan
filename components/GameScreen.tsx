@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { FruitState, QuizQuestion } from '../types';
-import { NORMAL_FRUITS, BONUS_FRUIT, BOMB, QUIZ_QUESTIONS } from '../constants';
+import { NORMAL_FRUITS, BONUS_FRUIT, QUIZ_QUESTIONS } from '../constants';
 import QuizModal from './QuizModal';
 
 interface ScoreEffect {
@@ -33,26 +33,57 @@ const GameScreen: React.FC<GameScreenProps> = ({ onEnd }) => {
   const effectId = useRef(0);
   const isPaused = useRef(false);
 
-  // Stats for the end game (refs to avoid closure issues in loop)
+  const timeLeftRef = useRef(60);
+  const fruitsRef = useRef<FruitState[]>([]);
+  const questionQueue = useRef<QuizQuestion[]>([]);
+  const lastBonusSpawnTime = useRef(60);
+  const bonusCountRef = useRef(0);
+
   const scoreRef = useRef(0);
   const slicesRef = useRef(0);
   const correctRef = useRef(0);
   const totalBonusRef = useRef(0);
 
+  // Fisher-Yates Shuffle Algorithm
+  const shuffle = <T,>(array: T[]): T[] => {
+    const newArr = [...array];
+    for (let i = newArr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+    }
+    return newArr;
+  };
+
+  useEffect(() => {
+    timeLeftRef.current = timeLeft;
+  }, [timeLeft]);
+
+  useEffect(() => {
+    fruitsRef.current = fruits;
+  }, [fruits]);
+
+  useEffect(() => {
+    // สุ่มลำดับคำถามใหม่ทุกครั้งที่เริ่มเกม
+    questionQueue.current = shuffle([...QUIZ_QUESTIONS]);
+  }, []);
+
   const spawnFruit = () => {
     if (!gameAreaRef.current || isPaused.current) return;
     const rect = gameAreaRef.current.getBoundingClientRect();
 
-    const random = Math.random();
     let type: FruitState['type'] = 'normal';
     let icon = NORMAL_FRUITS[Math.floor(Math.random() * NORMAL_FRUITS.length)];
 
-    if (random < 0.1 && totalBonusRef.current < 10) {
+    const currentTime = timeLeftRef.current;
+    const timeSinceLastBonus = lastBonusSpawnTime.current - currentTime;
+    const isBonusOnScreen = fruitsRef.current.some(f => f.type === 'bonus' && !f.isSliced);
+    
+    // บังคับเกิดทุก 5.8 วินาที เพื่อให้ครบ 10 ข้อใน 60 วินาที
+    if (timeSinceLastBonus >= 5.8 && bonusCountRef.current < 10 && !isBonusOnScreen) {
       type = 'bonus';
       icon = BONUS_FRUIT;
-    } else if (random < 0.15 && timeLeft < 50) {
-      type = 'bomb';
-      icon = BOMB;
+      lastBonusSpawnTime.current = currentTime;
+      bonusCountRef.current++;
     }
 
     const newFruit: FruitState = {
@@ -61,9 +92,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ onEnd }) => {
       type,
       x: Math.random() * (rect.width - 100) + 50,
       y: rect.height + 80,
-      velocityY: type === 'bonus' ? -(8 + Math.random() * 2) : -(12 + Math.random() * 4),
-      velocityX: (Math.random() - 0.5) * 3,
-      gravity: type === 'bonus' ? 0.15 : 0.25,
+      velocityY: type === 'bonus' ? -9 : -(11 + Math.random() * 3),
+      velocityX: (Math.random() - 0.5) * 2.5,
+      gravity: type === 'bonus' ? 0.07 : 0.12,
       isSliced: false
     };
 
@@ -88,21 +119,20 @@ const GameScreen: React.FC<GameScreenProps> = ({ onEnd }) => {
       const newFruits = [...prev];
       newFruits[idx] = { ...fruit, isSliced: true };
 
-      if (fruit.type === 'bomb') {
-        addScoreEffect(fruit.x, fruit.y, "BOOM!", "text-red-500");
-        setTimeout(() => onEnd({ 
-          score: scoreRef.current, 
-          slices: slicesRef.current, 
-          correct: correctRef.current, 
-          totalBonus: totalBonusRef.current, 
-          hitBomb: true 
-        }), 400);
-      } else if (fruit.type === 'bonus') {
+      if (fruit.type === 'bonus') {
         addScoreEffect(fruit.x, fruit.y, "SURPRISE!", "text-amber-400");
         totalBonusRef.current++;
         setStats(s => ({ ...s, totalBonus: totalBonusRef.current }));
         isPaused.current = true;
-        setCurrentQuiz(QUIZ_QUESTIONS[Math.floor(Math.random() * QUIZ_QUESTIONS.length)]);
+        
+        // ดึงคำถามจาก Queue ที่สุ่มไว้แล้ว
+        const nextQuestion = questionQueue.current.shift();
+        if (nextQuestion) {
+          setCurrentQuiz(nextQuestion);
+        } else {
+          // ป้องกันข้อผิดพลาด (ถ้ากล่องเกิน 10) ให้สุ่มใหม่จากกองกลาง
+          setCurrentQuiz(QUIZ_QUESTIONS[Math.floor(Math.random() * QUIZ_QUESTIONS.length)]);
+        }
       } else {
         addScoreEffect(fruit.x, fruit.y, "+1", "text-emerald-400");
         scoreRef.current += 1;
@@ -166,7 +196,6 @@ const GameScreen: React.FC<GameScreenProps> = ({ onEnd }) => {
       setStats(s => ({ ...s, correct: correctRef.current }));
     }
     
-    // แสดงเอฟเฟกต์คะแนนจากการตอบคำถามตรงกลางจอ
     if (gameAreaRef.current) {
       addScoreEffect(
         gameAreaRef.current.clientWidth / 2, 
@@ -202,14 +231,14 @@ const GameScreen: React.FC<GameScreenProps> = ({ onEnd }) => {
             <span className="text-amber-400 font-bold">⭐ คะแนน:</span>
             <span className="text-white font-extrabold text-2xl ml-2">{score}</span>
           </div>
-          <div className="bg-emerald-500/10 px-4 py-2 rounded-xl border border-emerald-500/40 hidden md:block">
-            <span className="text-emerald-400 font-bold">🎯 คลิก:</span>
-            <span className="text-white font-extrabold text-2xl ml-2">{slices}</span>
+          <div className="bg-emerald-500/10 px-4 py-2 rounded-xl border border-emerald-500/40">
+            <span className="text-emerald-400 font-bold">🎁 ข้อที่:</span>
+            <span className="text-white font-extrabold text-2xl ml-2">{stats.totalBonus} / 10</span>
           </div>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-white font-bold">⏱️</span>
-          <div className="w-32 md:w-48 h-4 bg-slate-700 rounded-full overflow-hidden">
+          <div className="w-24 md:w-48 h-4 bg-slate-700 rounded-full overflow-hidden">
             <div 
               className="h-full bg-gradient-to-r from-emerald-500 to-red-500 transition-all duration-1000"
               style={{ width: `${(timeLeft / 60) * 100}%` }}
@@ -228,12 +257,13 @@ const GameScreen: React.FC<GameScreenProps> = ({ onEnd }) => {
             onTouchStart={(e) => { e.preventDefault(); sliceFruit(fruit.id); }}
             className={`absolute select-none cursor-crosshair transition-transform duration-200 ${
               fruit.isSliced ? 'scale-150 opacity-0 rotate-45 pointer-events-none' : 'hover:scale-110'
-            } ${fruit.type === 'bonus' ? 'drop-shadow-[0_0_15px_rgba(251,191,36,0.8)] animate-pulse' : ''}`}
+            } ${fruit.type === 'bonus' ? 'drop-shadow-[0_0_20px_rgba(251,191,36,0.9)] animate-bounce' : ''}`}
             style={{
               left: fruit.x,
-              bottom: fruit.y < 0 ? -100 : (gameAreaRef.current?.clientHeight || 0) - fruit.y,
-              fontSize: fruit.type === 'bonus' ? '5rem' : '4rem',
-              transform: `translate(-50%, 50%)`
+              bottom: (gameAreaRef.current?.clientHeight || 0) - fruit.y,
+              fontSize: fruit.type === 'bonus' ? '6.5rem' : '4.5rem',
+              transform: `translate(-50%, 50%)`,
+              zIndex: fruit.type === 'bonus' ? 10 : 1
             }}
           >
             {fruit.icon}
@@ -254,11 +284,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ onEnd }) => {
           </div>
         ))}
 
-        {!isPaused.current && fruits.length === 0 && (
+        {!isPaused.current && fruits.length === 0 && timeLeft > 57 && (
           <div className="absolute inset-0 flex items-center justify-center opacity-30 pointer-events-none">
             <div className="text-center">
               <div className="text-6xl mb-4">👆</div>
-              <p className="text-white text-3xl font-bold">คลิกที่ผลไม้!</p>
+              <p className="text-white text-3xl font-bold">สไลซ์ผลไม้เลย!</p>
             </div>
           </div>
         )}

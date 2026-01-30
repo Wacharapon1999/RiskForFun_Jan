@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { QuizQuestion } from '../types';
 
 interface QuizModalProps {
@@ -11,6 +11,22 @@ const QuizModal: React.FC<QuizModalProps> = ({ question, onAnswer }) => {
   const [timeLeft, setTimeLeft] = useState(10);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [isDone, setIsDone] = useState(false);
+
+  // สุ่มลำดับตัวเลือกเมื่อข้อสอบเปลี่ยน
+  const shuffledOptions = useMemo(() => {
+    const optionsWithMeta = question.options.map((opt, idx) => ({
+      text: opt,
+      isCorrect: idx === question.correct
+    }));
+    
+    // Fisher-Yates shuffle for options
+    const newArr = [...optionsWithMeta];
+    for (let i = newArr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+    }
+    return newArr;
+  }, [question]);
 
   useEffect(() => {
     if (isDone) return;
@@ -30,7 +46,9 @@ const QuizModal: React.FC<QuizModalProps> = ({ question, onAnswer }) => {
     if (isDone) return;
     setSelectedIdx(idx);
     setIsDone(true);
-    const isCorrect = idx === question.correct;
+    
+    // เช็คจากสถานะ isCorrect ที่ผูกไว้กับตัวเลือกนั้นๆ
+    const isCorrect = idx !== -1 && shuffledOptions[idx].isCorrect;
     setTimeout(() => onAnswer(isCorrect), 1500);
   };
 
@@ -48,7 +66,7 @@ const QuizModal: React.FC<QuizModalProps> = ({ question, onAnswer }) => {
             <p className="text-white text-lg font-semibold text-center">{question.question}</p>
           ) : (
             <div className="text-center">
-              {selectedIdx === question.correct ? (
+              {selectedIdx !== -1 && shuffledOptions[selectedIdx || 0].isCorrect ? (
                 <p className="text-emerald-400 text-xl font-bold">✅ ถูกต้อง! +10 คะแนน</p>
               ) : (
                 <p className="text-amber-400 text-xl font-bold">💡 ไม่เป็นไร +5 คะแนน</p>
@@ -58,12 +76,12 @@ const QuizModal: React.FC<QuizModalProps> = ({ question, onAnswer }) => {
         </div>
 
         <div className="space-y-3">
-          {question.options.map((opt, idx) => {
+          {shuffledOptions.map((opt, idx) => {
             let bgColor = 'bg-slate-700 hover:bg-blue-600';
             let borderColor = 'border-slate-600';
 
             if (isDone) {
-              if (idx === question.correct) {
+              if (opt.isCorrect) {
                 bgColor = 'bg-emerald-600';
                 borderColor = 'border-emerald-400';
               } else if (idx === selectedIdx) {
@@ -82,7 +100,7 @@ const QuizModal: React.FC<QuizModalProps> = ({ question, onAnswer }) => {
                 className={`w-full text-left p-4 rounded-xl border transition-all ${bgColor} ${borderColor} text-white font-medium`}
               >
                 <span className="text-amber-400 font-bold mr-3">{String.fromCharCode(65 + idx)}.</span>
-                {opt}
+                {opt.text}
               </button>
             );
           })}
