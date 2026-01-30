@@ -1,0 +1,5 @@
+{
+  "name": "Risk For Fun - risk-slice",
+  "description": "A fruit-slicing educational game about risk management, now powered by Google Sheets for data persistence and leaderboards.",
+  "requestFramePermissions": []
+}
